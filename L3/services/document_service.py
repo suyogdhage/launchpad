@@ -1,4 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from repository.user_repo import UserRepository
 from schemas.document_schemas import DocumentCreate, DocUpdate, Status
 from repository.document_repo import DocumentRepository
 from models.document_model import Document
@@ -7,9 +8,9 @@ from uuid import UUID
 from dependencies.loggers import logger
 from models.task_model import Task
 from repository.task_repo import TaskRepository
-from dependencies.web_sockets import manager                              # ADD
-from repository.dashboard_repo import DashboardRepository  # ADD
-
+from dependencies.web_sockets import manager                           
+from repository.dashboard_repo import DashboardRepository  
+from dependencies.email_service import email_service
 
 class DocumentServices:
     @staticmethod
@@ -26,26 +27,25 @@ class DocumentServices:
     @staticmethod
     async def approve_doc(document_id: UUID, db: AsyncSession):
         logger.info("Approving Document")
+
         doc = await DocumentRepository.get_by_id(document_id, db)
+
         if doc.status == "approved":
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already approved")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Already approved",
+            )
+
         result = await DocumentRepository.aprove_doc(doc, db)
 
-        stats = await DashboardRepository.get_stats(db)  
-        await manager.broadcast(stats)                    
+    
+        user = await UserRepository.get_by_id(doc.uploaded_by, db)
 
-        return result
+        if user:
+            email_service.send_document_approved(user.email)
 
-    @staticmethod
-    async def reject_doc(reason: str, document_id: UUID, db: AsyncSession):
-        logger.info("Rejecting Document")
-        doc = await DocumentRepository.get_by_id(document_id, db)
-        if doc.status == "rejected":
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already Rejected")
-        result = await DocumentRepository.reject_doc(reason, doc, db)
-
-        stats = await DashboardRepository.get_stats(db)  
-        await manager.broadcast(stats)                    
+        stats = await DashboardRepository.get_stats(db)
+        await manager.broadcast(stats)
 
         return result
 
