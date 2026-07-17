@@ -1,0 +1,55 @@
+from repository.user_repo import UserRepository
+from sqlalchemy.ext.asyncio import AsyncSession
+from schemas.user_schema import CreateUser,UserLogin
+from fastapi import HTTPException,status
+from dependencies.auth import Authentication
+from dependencies.loggers import logger
+from dependencies.email_service import email_service
+from uuid import UUID
+
+
+class UserServices:
+    @staticmethod
+    async def register_user(user: CreateUser, db: AsyncSession):
+        existing = await UserRepository.get_user_by_email(user.email, db)
+
+        if existing:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Email already exists")
+
+        created_user = await UserRepository.register_user(user, db)
+        logger.info(f"User created: {created_user.email}")
+        email_service.send_login(
+            to_email=created_user.email,
+            subject="Welcome to Launchpad",
+            message=f"""
+            Hi {created_user.name},
+
+            Welcome to Launchpad!
+
+            Your account has been created successfully.
+            You can now sign in.
+            """)
+        return created_user
+    
+    @staticmethod
+    async def login_user(data:UserLogin,db):
+        user=await UserRepository.get_user_by_email(data.email,db)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="User not exist")
+        if not Authentication.verify_hash(data.password,user.password):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Incorrect email or password")
+        logger.info("Creating token")
+        token=Authentication.create_access_token({"id":str(user.id),"role":str(user.role_name)})
+        return {"token":token}
+    
+    @staticmethod
+    async def get_all_user(db:AsyncSession):
+        return await UserRepository.get_all_user(db)
+    
+    @staticmethod
+    async def assign_manager(user_id:UUID,manager_id:UUID,db:AsyncSession):
+        user=await UserRepository.get_user_by_id(user_id,db)
+        manager=await UserRepository.get_user_by_id(manager_id,db)
+        if manager.role_name!="manager":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="User you are assigning  to is not manager")
+        return await UserRepository.assign_manager(user,manager_id,db)

@@ -1,0 +1,32 @@
+[project]
+name = "launchpad"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Suyog Dhage",email = "suyog.dhage@coditas.com"}
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi (>=0.138.0,<0.139.0)",
+    "sqlalchemy (>=2.0.51,<3.0.0)",
+    "dotenv (>=0.9.9,<0.10.0)",
+    "alembic (>=1.18.4,<2.0.0)",
+    "pgvector (>=0.4.2,<0.5.0)",
+    "py[jose] (>=1.11.0,<2.0.0)",
+    "asyncpg (>=0.31.0,<0.32.0)",
+    "psycopg2 (>=2.9.12,<3.0.0)",
+    "python-jose (>=3.5.0,<4.0.0)",
+    "python-multipart (>=0.0.32,<0.0.33)",
+    "bcrypt (==4.0.1)",
+    "passlib (>=1.7.4,<2.0.0)",
+    "boto3 (>=1.43.36,<2.0.0)",
+    "pydantic-settings (>=2.14.2,<3.0.0)",
+    "websockets (>=16.0,<17.0)",
+    "groq (>=1.5.0,<2.0.0)",
+
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
