@@ -1,13 +1,16 @@
 import smtplib
 import ssl
+import threading
 from email.message import EmailMessage
 from config import settings
 from dependencies.loggers import logger
 
+SMTP_TIMEOUT_SECONDS = 15
+
 
 class EmailService:
     @staticmethod
-    def send_email(to_email: str, subject: str, html_body: str):
+    def _smtp_send(to_email: str, subject: str, html_body: str):
         if not settings.EMAIL_ENABLED:
             logger.info(f"Email disabled, skipping to {to_email}: {subject}")
             return
@@ -16,23 +19,35 @@ class EmailService:
         msg["From"] = settings.EMAILS_FROM_EMAIL
         msg["To"] = to_email
         msg["Subject"] = subject
-        msg.set_content(html_body)
+        msg.set_content("Please view this email in an HTML-capable client.")
         msg.add_alternative(html_body, subtype="html")
 
         try:
             if settings.SMTP_PORT == 465:
                 context = ssl.create_default_context()
-                with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, context=context) as server:
+                with smtplib.SMTP_SSL(
+                    settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS, context=context
+                ) as server:
                     server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
                     server.send_message(msg)
             else:
-                with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-                    server.starttls()
+                with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
+                    server.ehlo()
+                    server.starttls(context=ssl.create_default_context())
+                    server.ehlo()
                     server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
                     server.send_message(msg)
             logger.info(f"Email sent to {to_email}: {subject}")
         except Exception as e:
-            raise Exception(f"SMTP email failed: {e}")
+            logger.warning(f"SMTP email failed to {to_email} ({subject}): {e}")
+
+    @staticmethod
+    def send_email(to_email: str, subject: str, html_body: str):
+        threading.Thread(
+            target=EmailService._smtp_send,
+            args=(to_email, subject, html_body),
+            daemon=True,
+        ).start()
 
     @staticmethod
     def send_document_approved(to_email: str):
