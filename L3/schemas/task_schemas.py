@@ -15,12 +15,12 @@ class UpdateTaskStatus(BaseModel):
 class TaskResponse(BaseModel):
     id:UUID
     title:str
-    description:str
+    description:str | None = None
     status:str
-    deadline:date |None=None
+    deadline:date | None = None
     assigned_to:UUID
     assigned_by:UUID
-    completed_at:datetime |None=None
+    completed_at:datetime | None = None
 
 
 

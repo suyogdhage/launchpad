@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.user_model import Users
 from models.task_model import Task
 from models.document_model import Document
+from models.user_role import UserRole
 from sqlalchemy.exc import SQLAlchemyError
 from dependencies.web_sockets import WebSocket
 
@@ -11,7 +12,7 @@ class DashboardRepository:
     @staticmethod
     async def get_stats(db: AsyncSession):
         try:
-            total_users = await db.scalar(select(func.count()).select_from(Users).where(Users.role_name == "new_hire"))
+            total_users = await db.scalar(select(func.count()).select_from(Users).where(Users.role_name == UserRole.NEW_HIRE))
 
             completed_tasks = await db.scalar( select(func.count()).select_from(Task).where(Task.status == "completed"))
 

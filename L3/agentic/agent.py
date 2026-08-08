@@ -5,18 +5,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agentic.tools import get_pending_tasks, submit_request
 from agentic.tool_def import TOOL_DEFINITIONS
 from config import settings
+from models.chat_model import MessageRole
+from repository.chat_repo import ChatRepository
+from dependencies.loggers import logger
 
 client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
 SYSTEM_PROMPT = """You are Onboarding Buddy — a helpful assistant for new hires.
 You help them check pending tasks and submit requests.
-When you take an action, confirm what you did in plain English."""
+When you take an action, confirm what you did in plain English.
+Use the conversation history below for context."""
 
 async def run_agent(user_id: UUID, user_message: str, db: AsyncSession):
 
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": user_message}]
+    history = await ChatRepository.get_recent_messages(user_id, db)
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    for msg in history:
+        messages.append({
+            "role": msg.role.value,
+            "content": msg.content,
+        })
+    messages.append({"role": "user", "content": user_message})
+
+    await ChatRepository.save_message(user_id, MessageRole.user, user_message, db)
 
     response = await client.chat.completions.create(
         model="llama-3.3-70b-versatile",
@@ -26,7 +37,9 @@ async def run_agent(user_id: UUID, user_message: str, db: AsyncSession):
     assistant_message = response.choices[0].message
 
     if not assistant_message.tool_calls:
-        return {"reply": assistant_message.content}
+        reply = assistant_message.content
+        await ChatRepository.save_message(user_id, MessageRole.assistant, reply, db)
+        return {"reply": reply}
 
     tool_call = assistant_message.tool_calls[0]
     tool_name = tool_call.function.name
@@ -61,5 +74,7 @@ async def run_agent(user_id: UUID, user_message: str, db: AsyncSession):
     final_response = await client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=messages)
-    
-    return {"reply": final_response.choices[0].message.content}
+
+    reply = final_response.choices[0].message.content or ""
+    await ChatRepository.save_message(user_id, MessageRole.assistant, reply, db)
+    return {"reply": reply}

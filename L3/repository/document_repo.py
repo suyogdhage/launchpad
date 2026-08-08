@@ -1,7 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from schemas.document_schemas import DocumentCreate,DocUpdate,Status
 from models.document_model import Document
+from models.task_model import Task
 from sqlalchemy.exc import SQLAlchemyError
 from uuid import UUID
 
@@ -13,6 +14,19 @@ class DocumentRepository:
             await db.commit()
             await db.refresh(doc)
             return doc
+        except SQLAlchemyError as e:
+            await db.rollback()
+            raise e
+
+    @staticmethod
+    async def get_total_size_by_user(uploaded_by: UUID, db: AsyncSession):
+        try:
+            result = await db.execute(
+                select(func.coalesce(func.sum(Document.file_size), 0)).where(
+                    Document.uploaded_by == uploaded_by
+                )
+            )
+            return result.scalar()
         except SQLAlchemyError as e:
             await db.rollback()
             raise e
@@ -43,6 +57,34 @@ class DocumentRepository:
         try:
             result=await db.execute(select(Document).where(Document.id==document_id))
             return result.scalars().one_or_none()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            raise e
+
+    @staticmethod
+    async def get_docs_by_user(uploaded_by: UUID, db: AsyncSession):
+        try:
+            result = await db.execute(
+                select(Document, Task.title)
+                .join(Task, Task.id == Document.task_id)
+                .where(Document.uploaded_by == uploaded_by)
+                .order_by(Document.created_at.desc())
+            )
+            return result.all()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            raise e
+
+    @staticmethod
+    async def get_docs_by_status(status: str, db: AsyncSession):
+        try:
+            result = await db.execute(
+                select(Document, Task.title)
+                .join(Task, Task.id == Document.task_id)
+                .where(Document.status == status)
+                .order_by(Document.created_at.desc())
+            )
+            return result.all()
         except SQLAlchemyError as e:
             await db.rollback()
             raise e

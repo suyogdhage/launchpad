@@ -2,7 +2,6 @@ from schemas.user_schema import CreateUser
 from models.user_model import Users
 from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies.auth import Authentication
-from models.role_model import Role
 from sqlalchemy import select
 from uuid import UUID
 from sqlalchemy.exc import SQLAlchemyError
@@ -11,7 +10,7 @@ class UserRepository:
     @staticmethod
     async def register_user(user:CreateUser,db:AsyncSession):
         try:
-            user=Users(name=user.name,email=user.email,password=Authentication.hash_password(user.password))
+            user=Users(name=user.name,email=user.email,password=Authentication.hash_password(user.password),role_name=user.role_name)
             db.add(user)
             await db.commit()
             await db.refresh(user)
@@ -53,6 +52,15 @@ class UserRepository:
             user.assigned_to=manager_id
             await db.commit()
             return {f"{user.email} assigned to {manager_id}"}
+        except SQLAlchemyError as e:
+            await db.rollback()
+            raise e
+
+    @staticmethod
+    async def get_team_members(manager_id: UUID, db: AsyncSession):
+        try:
+            result = await db.execute(select(Users).where(Users.assigned_to == manager_id))
+            return result.scalars().all()
         except SQLAlchemyError as e:
             await db.rollback()
             raise e

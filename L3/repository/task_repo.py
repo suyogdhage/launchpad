@@ -3,6 +3,9 @@ from uuid import UUID
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.task_model import Task
+from models.document_model import Document
+from models.user_model import Users
+from sqlalchemy.orm import selectinload
 
 class TaskRepository:
     @staticmethod
@@ -24,6 +27,16 @@ class TaskRepository:
     @staticmethod
     async def get_tasks_by_user(user_id:str,db:AsyncSession):
         result=await db.execute(select(Task).where(Task.assigned_to==UUID(user_id)))
+        return result.scalars().all()
+
+    @staticmethod
+    async def get_tasks_by_creator(user_id: str, db: AsyncSession):
+        result = await db.execute(
+            select(Task)
+            .options(selectinload(Task.documents))
+            .where(Task.assigned_by == UUID(user_id))
+            .order_by(Task.created_at.desc())
+        )
         return result.scalars().all()
     
     @staticmethod

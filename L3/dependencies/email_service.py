@@ -1,28 +1,38 @@
-import boto3
-from botocore.exceptions import ClientError
+import smtplib
+import ssl
+from email.message import EmailMessage
 from config import settings
-ses_client = boto3.client(
-    "ses",
-    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-    region_name="ap-south-1"
-)
+from dependencies.loggers import logger
+
 
 class EmailService:
-
     @staticmethod
     def send_email(to_email: str, subject: str, html_body: str):
+        if not settings.EMAIL_ENABLED:
+            logger.info(f"Email disabled, skipping to {to_email}: {subject}")
+            return
+
+        msg = EmailMessage()
+        msg["From"] = settings.EMAILS_FROM_EMAIL
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.set_content(html_body)
+        msg.add_alternative(html_body, subtype="html")
+
         try:
-            ses_client.send_email(
-                Source=settings.EMAILS_FROM_EMAIL,
-                Destination={"ToAddresses": [to_email]},
-                Message={
-                    "Subject": {"Data": subject},
-                    "Body": {"Html": {"Data": html_body}},
-                },
-            )
-        except ClientError as e:
-            raise Exception(f"SES email failed: {e.response['Error']['Message']}")
+            if settings.SMTP_PORT == 465:
+                context = ssl.create_default_context()
+                with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, context=context) as server:
+                    server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                    server.starttls()
+                    server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+                    server.send_message(msg)
+            logger.info(f"Email sent to {to_email}: {subject}")
+        except Exception as e:
+            raise Exception(f"SMTP email failed: {e}")
 
     @staticmethod
     def send_document_approved(to_email: str):

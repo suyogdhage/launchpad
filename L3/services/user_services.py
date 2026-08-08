@@ -5,7 +5,9 @@ from fastapi import HTTPException,status
 from dependencies.auth import Authentication
 from dependencies.loggers import logger
 from dependencies.email_service import email_service
+from models.user_role import UserRole
 from uuid import UUID
+from config import settings
 
 
 class UserServices:
@@ -18,17 +20,20 @@ class UserServices:
 
         created_user = await UserRepository.register_user(user, db)
         logger.info(f"User created: {created_user.email}")
-        email_service.send_login(
-            to_email=created_user.email,
-            subject="Welcome to Launchpad",
-            message=f"""
-            Hi {created_user.name},
+        try:
+            email_service.send_email(
+                to_email=created_user.email,
+                subject="Welcome to Launchpad",
+                html_body=f"""
+                Hi {created_user.name},
 
-            Welcome to Launchpad!
+                Welcome to Launchpad!
 
-            Your account has been created successfully.
-            You can now sign in.
-            """)
+                Your account has been created successfully.
+                <p>Click here to sign in: <a href="{settings.FRONTEND_URL}/login">{settings.FRONTEND_URL}/login</a></p>
+                """)
+        except Exception as e:
+            logger.warning(f"Welcome email failed: {e}")
         return created_user
     
     @staticmethod
@@ -39,7 +44,7 @@ class UserServices:
         if not Authentication.verify_hash(data.password,user.password):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Incorrect email or password")
         logger.info("Creating token")
-        token=Authentication.create_access_token({"id":str(user.id),"role":str(user.role_name)})
+        token=Authentication.create_access_token({"id":str(user.id),"role":user.role_name.value if isinstance(user.role_name, UserRole) else user.role_name})
         return {"token":token}
     
     @staticmethod
@@ -50,6 +55,10 @@ class UserServices:
     async def assign_manager(user_id:UUID,manager_id:UUID,db:AsyncSession):
         user=await UserRepository.get_user_by_id(user_id,db)
         manager=await UserRepository.get_user_by_id(manager_id,db)
-        if manager.role_name!="manager":
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="User you are assigning  to is not manager")
+        if manager.role_name != UserRole.MANAGER:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="User you are assigning to is not manager")
         return await UserRepository.assign_manager(user,manager_id,db)
+
+    @staticmethod
+    async def get_team_members(manager_id: UUID, db: AsyncSession):
+        return await UserRepository.get_team_members(manager_id, db)

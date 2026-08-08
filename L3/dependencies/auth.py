@@ -21,7 +21,7 @@ class Authentication:
         to_encode=data.copy()
         expire=datetime.now(timezone.utc)+timedelta(minutes=settings.ACCESS_TIME_IN_MINUTES)
         to_encode.update({"exp":expire,"type":"access"})
-        return jwt.encode(data,settings.SECRET_KEY,algorithm=settings.ALGORITHM)
+        return jwt.encode(to_encode,settings.SECRET_KEY,algorithm=settings.ALGORITHM)
     
     def decode_token(token=Depends(security),db=Depends(get_db)):
         try:

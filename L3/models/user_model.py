@@ -1,7 +1,9 @@
 from sqlalchemy import Column, String, DateTime, ForeignKey, func
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from dependencies.session import Base
+from models.user_role import UserRole
 import uuid
 
 class Users(Base):
@@ -10,11 +12,10 @@ class Users(Base):
     email=Column(String,unique=True,nullable=False)
     password=Column(String,nullable=False)
     name=Column(String,nullable=False)
-    role_name=Column(String,ForeignKey("roles.name"),nullable=False,default="new_hire")
+    role_name=Column(SAEnum(UserRole, values_callable=lambda obj: [e.value for e in obj]), nullable=False, default=UserRole.NEW_HIRE)
     assigned_to=Column(UUID(as_uuid=True),ForeignKey("users.id"),nullable=True)
     created_at=Column(DateTime(timezone=True),server_default=func.now())
 
-    role=relationship("Role",back_populates="users")
     manager=relationship("Users",remote_side=[id],back_populates="team_members")
     team_members=relationship("Users",back_populates="manager")
     assigned_tasks=relationship("Task",foreign_keys="Task.assigned_to",back_populates="assignee")
