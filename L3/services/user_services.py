@@ -20,20 +20,24 @@ class UserServices:
 
         created_user = await UserRepository.register_user(user, db)
         logger.info(f"User created: {created_user.email}")
-        try:
-            email_service.send_email(
-                to_email=created_user.email,
-                subject="Welcome to Launchpad",
-                html_body=f"""
-                Hi {created_user.name},
+        email_service.send_email(
+            to_email=created_user.email,
+            subject="Welcome to Launchpad",
+            html_body=f"""
+            Hi {created_user.name},
 
-                Welcome to Launchpad!
+            Welcome to Launchpad!
 
-                Your account has been created successfully.
-                <p>Click here to sign in: <a href="{settings.FRONTEND_URL}/login">{settings.FRONTEND_URL}/login</a></p>
-                """)
-        except Exception as e:
-            logger.warning(f"Welcome email failed: {e}")
+            Your account has been created successfully. Use the credentials below to sign in.
+
+            <p><b>Your login details:</b></p>
+            <ul>
+                <li><b>Email:</b> {created_user.email}</li>
+                <li><b>Password:</b> {user.password}</li>
+            </ul>
+
+            <p>Click here to sign in: <a href="{settings.FRONTEND_URL}/login">{settings.FRONTEND_URL}/login</a></p>
+            """)
         return created_user
     
     @staticmethod
