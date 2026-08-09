@@ -11,20 +11,26 @@ import {
   Typography,
   Space,
 } from "antd";
-import { PlusOutlined, SwapOutlined, TeamOutlined } from "@ant-design/icons";
-import { useGetUsers, useAssignManager } from "../hooks/useUsers";
+import { PlusOutlined, SwapOutlined, TeamOutlined, DeleteOutlined } from "@ant-design/icons";
+import { useGetUsers, useAssignManager, useDeleteUser } from "../hooks/useUsers";
 import { useRegister } from "../hooks/useAuth";
+import { useAuth } from "../context/AuthContext";
 import { PageHeader } from "../components/shared/PageHeader";
+import type { User } from "../types/api";
 
 
 export default function UserManagementPage() {
   const { data: users, isLoading } = useGetUsers();
   const registerMutation = useRegister();
   const assignMutation = useAssignManager();
+  const deleteMutation = useDeleteUser();
+  const { user: currentUser } = useAuth();
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [createForm] = Form.useForm();
   const [assignForm] = Form.useForm();
+
+  const isSuperadmin = currentUser?.role === "superadmin";
 
   const handleCreate = (values: {
     email: string;
@@ -54,6 +60,23 @@ export default function UserManagementPage() {
       onError: (err: any) => {
         message.error(err.response?.data?.detail || "Failed to assign");
       },
+    });
+  };
+
+  const handleDelete = (record: User) => {
+    Modal.confirm({
+      title: `Delete ${record.name}?`,
+      content:
+        "This permanently removes the user along with their tasks, documents, notifications, requests, and chat history. This cannot be undone.",
+      okText: "Delete",
+      okType: "danger",
+      cancelText: "Cancel",
+      onOk: () =>
+        deleteMutation.mutate(record.id, {
+          onSuccess: () => message.success("User deleted"),
+          onError: (err: any) =>
+            message.error(err.response?.data?.detail || "Failed to delete user"),
+        }),
     });
   };
 
@@ -96,6 +119,31 @@ export default function UserManagementPage() {
           <Tag>Unassigned</Tag>
         ),
     },
+    ...(isSuperadmin
+      ? [
+          {
+            title: "Actions",
+            key: "actions",
+            render: (_: unknown, record: User) => {
+              const isSelf = record.id === currentUser?.id;
+              return (
+                <Space>
+                  <Button
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    disabled={isSelf}
+                    title={isSelf ? "You cannot delete your own account" : "Delete user"}
+                    onClick={() => handleDelete(record)}
+                  >
+                    Delete
+                  </Button>
+                </Space>
+              );
+            },
+          },
+        ]
+      : []),
   ];
 
   return (

@@ -34,3 +34,12 @@ export function useMe() {
     queryFn: () => api.get("/auth/me").then((r) => r.data),
   });
 }
+
+export function useDeleteUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (user_id: string) =>
+      api.delete(`/auth/user/${user_id}`).then((r) => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+  });
+}
