@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str
     EMAILS_FROM_EMAIL: str
     EMAIL_ENABLED: bool = True
+    BREVO_API_KEY: str | None = None
+    EMAIL_SENDER_NAME: str = "Launchpad"
 
     GROQ_API_KEY: str
 

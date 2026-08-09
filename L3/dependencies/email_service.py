@@ -10,6 +10,33 @@ SMTP_TIMEOUT_SECONDS = 15
 
 class EmailService:
     @staticmethod
+    def _brevo_api_send(to_email: str, subject: str, html_body: str):
+        import httpx
+
+        url = "https://api.brevo.com/v3/smtp/email"
+        payload = {
+            "sender": {"name": settings.EMAIL_SENDER_NAME, "email": settings.EMAILS_FROM_EMAIL},
+            "to": [{"email": to_email}],
+            "subject": subject,
+            "htmlContent": html_body,
+        }
+        headers = {
+            "api-key": settings.BREVO_API_KEY,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        try:
+            resp = httpx.post(url, json=payload, headers=headers, timeout=20)
+            if resp.status_code == 201:
+                logger.info(f"Email sent to {to_email}: {subject}")
+            else:
+                logger.warning(
+                    f"Brevo API email failed to {to_email} ({subject}): HTTP {resp.status_code} {resp.text[:200]}"
+                )
+        except Exception as e:
+            logger.warning(f"Brevo API email failed to {to_email} ({subject}): {e}")
+
+    @staticmethod
     def _smtp_send(to_email: str, subject: str, html_body: str):
         if not settings.EMAIL_ENABLED:
             logger.info(f"Email disabled, skipping to {to_email}: {subject}")
@@ -43,8 +70,13 @@ class EmailService:
 
     @staticmethod
     def send_email(to_email: str, subject: str, html_body: str):
+        if not settings.EMAIL_ENABLED:
+            logger.info(f"Email disabled, skipping to {to_email}: {subject}")
+            return
+
+        target = EmailService._brevo_api_send if settings.BREVO_API_KEY else EmailService._smtp_send
         threading.Thread(
-            target=EmailService._smtp_send,
+            target=target,
             args=(to_email, subject, html_body),
             daemon=True,
         ).start()
