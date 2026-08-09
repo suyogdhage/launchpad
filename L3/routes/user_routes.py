@@ -53,3 +53,12 @@ async def me(current_user=Depends(get_current_user),db:AsyncSession=Depends(get_
         raise
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail=str(e))
+
+@router.delete('/user/{user_id}')
+async def delete_user(user_id:UUID,current_user=Depends(access([UserRole.SUPERADMIN])),db:AsyncSession=Depends(get_db)):
+    try:
+        return await UserServices.delete_user(user_id,current_user,db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail=str(e))
