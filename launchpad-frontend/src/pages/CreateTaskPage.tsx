@@ -16,9 +16,10 @@ export default function CreateTaskPage() {
 
   const isHrOrSuperadmin = user?.role === "hr" || user?.role === "superadmin";
 
-  const assignableUsers = isHrOrSuperadmin
+  const assignableUsers = (isHrOrSuperadmin
     ? users || []
-    : users?.filter((u) => u.assigned_to === user?.id) || [];
+    : users?.filter((u) => u.assigned_to === user?.id) || []
+  ).filter((u) => u.role_name !== "superadmin");
 
   const onFinish = (values: {
     title: string;
@@ -80,7 +81,7 @@ export default function CreateTaskPage() {
                   .includes(input.toLowerCase())
               }
               options={assignableUsers.map((u) => ({
-                label: `${u.name} (${u.email}) [${u.role_name}]`,
+                label: u.name,
                 value: u.id,
               }))}
             />

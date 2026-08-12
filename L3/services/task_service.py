@@ -17,6 +17,10 @@ class TaskService:
     async def create_task(data: TaskSchema, current_user, db: AsyncSession):
         logger.info("Creating Task")
         user = await UserRepository.get_user_by_id(data.assigned_to, db)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assigned user not found")
+        if user.role_name == UserRole.SUPERADMIN:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign task to superadmin")
         if current_user["role"] == UserRole.MANAGER.value:
             if user.assigned_to is not None and UUID(current_user["id"]) != user.assigned_to:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User works under different manager")

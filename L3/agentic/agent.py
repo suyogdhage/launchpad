@@ -2,7 +2,7 @@ import json
 from uuid import UUID
 from groq import AsyncGroq
 from sqlalchemy.ext.asyncio import AsyncSession
-from agentic.tools import get_pending_tasks, submit_request
+from agentic.tools import get_pending_tasks, submit_request, complete_task, create_task
 from agentic.tool_def import TOOL_DEFINITIONS
 from config import settings
 from models.chat_model import MessageRole
@@ -12,7 +12,7 @@ from dependencies.loggers import logger
 client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
 SYSTEM_PROMPT = """You are Onboarding Buddy — a helpful assistant for new hires.
-You help them check pending tasks and submit requests.
+You help them check pending tasks, complete tasks, create their own onboarding tasks, and submit requests.
 When you take an action, confirm what you did in plain English.
 Use the conversation history below for context."""
 
@@ -50,6 +50,14 @@ async def run_agent(user_id: UUID, user_message: str, db: AsyncSession):
 
     elif tool_name == "submit_request":
         tool_result = await submit_request(user_id, args["description"], db)
+
+    elif tool_name == "complete_task":
+        tool_result = await complete_task(user_id, args["task_title"], db)
+
+    elif tool_name == "create_task":
+        tool_result = await create_task(
+            user_id, args["title"], args.get("description"), args.get("deadline"), db
+        )
 
     else:
         tool_result = "Unknown tool."
