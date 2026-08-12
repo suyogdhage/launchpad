@@ -1,4 +1,5 @@
 import json
+import re
 from uuid import UUID
 from groq import AsyncGroq
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,9 +14,12 @@ client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
 SYSTEM_PROMPT = """You are Onboarding Buddy — a helpful assistant.
 You help users check pending tasks, complete tasks, create tasks, and submit requests.
-When you take an action, only ever confirm that something was created or changed if the tool result says [SUCCESS].
-If the tool result says [ERROR], tell the user plainly that the action failed and why.
+To create, complete, or submit anything you MUST call the appropriate tool - never claim to have done it without calling the tool.
+NEVER claim that a task was created, completed, or a request submitted unless the tool result begins with [SUCCESS].
+If the tool result begins with [ERROR], tell the user plainly that the action failed and explain why.
 Use the conversation history below for context."""
+
+TEXTUAL_TOOL_CALL_RE = re.compile(r"<function=(\w+)>\s*(\{.*?\})\s*</function>", re.DOTALL)
 
 async def run_agent(user_id: UUID, user_role: str, user_message: str, db: AsyncSession):
 
@@ -37,14 +41,28 @@ async def run_agent(user_id: UUID, user_role: str, user_message: str, db: AsyncS
 
     assistant_message = response.choices[0].message
 
-    if not assistant_message.tool_calls:
+    tool_name = None
+    args = {}
+    tool_call_id = None
+    if assistant_message.tool_calls:
+        tool_call = assistant_message.tool_calls[0]
+        tool_name = tool_call.function.name
+        args = json.loads(tool_call.function.arguments)
+        tool_call_id = tool_call.id
+    else:
+        match = TEXTUAL_TOOL_CALL_RE.search(assistant_message.content or "")
+        if match:
+            try:
+                tool_name = match.group(1)
+                args = json.loads(match.group(2))
+                tool_call_id = f"call_{tool_name}_{len(assistant_message.content)}"
+            except (json.JSONDecodeError, ValueError):
+                tool_name = None
+
+    if not tool_name:
         reply = assistant_message.content
         await ChatRepository.save_message(user_id, MessageRole.assistant, reply, db)
         return {"reply": reply}
-
-    tool_call = assistant_message.tool_calls[0]
-    tool_name = tool_call.function.name
-    args = json.loads(tool_call.function.arguments)
 
     if tool_name == "get_pending_tasks":
         tool_result = await get_pending_tasks(user_id, db)
@@ -68,17 +86,17 @@ async def run_agent(user_id: UUID, user_role: str, user_message: str, db: AsyncS
         "role": "assistant",
         "content": assistant_message.content or "",
         "tool_calls": [{
-            "id": tool_call.id,
+            "id": tool_call_id,
             "type": "function",
             "function": {
                 "name": tool_name,
-                "arguments": tool_call.function.arguments
+                "arguments": json.dumps(args)
             }
         }]
     })
     messages.append({
         "role": "tool",
-        "tool_call_id": tool_call.id,
+        "tool_call_id": tool_call_id,
         "content": tool_result})
 
     final_response = await client.chat.completions.create(

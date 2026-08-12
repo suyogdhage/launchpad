@@ -1,5 +1,6 @@
 from uuid import UUID
 from datetime import date
+import re
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
 from repository.task_repo import TaskRepository
@@ -45,8 +46,17 @@ async def _resolve_assignee(user_id: UUID, role: str, target: str | None, db: As
         target = None
     if not target or not target.strip():
         return user_id, "yourself"
-    needle = target.strip().lower()
+    raw = target.strip()
+    email_match = re.search(r"[\w.+-]+@[\w-]+\.[\w.]+", raw)
+    email = email_match.group(0).lower() if email_match else None
+    name_part = re.sub(r"\s*\(.*?\)\s*", " ", raw).strip() or raw
     users = await UserRepository.get_all_user(db)
+    if email:
+        for u in users:
+            if u.email and u.email.strip().lower() == email:
+                return u.id, u.name
+        raise ValueError(f"Could not find anyone with email '{email}'.")
+    needle = name_part.lower()
     for u in users:
         if u.email and u.email.strip().lower() == needle:
             return u.id, u.name
@@ -57,8 +67,8 @@ async def _resolve_assignee(user_id: UUID, role: str, target: str | None, db: As
     if len(matches) == 1:
         return matches[0].id, matches[0].name
     if len(matches) > 1:
-        raise ValueError(f"Found multiple users matching '{target}'. Use the person's email instead.")
-    raise ValueError(f"Could not find anyone named or emailed '{target}'.")
+        raise ValueError(f"Found multiple users matching '{name_part}'. Use the person's email instead.")
+    raise ValueError(f"Could not find anyone named or emailed '{name_part}'.")
 
 async def create_task(user_id: UUID, role: str, title: str, description: str | None, deadline: str | None, assigned_to: str | None, db: AsyncSession):
     parsed_deadline = None
