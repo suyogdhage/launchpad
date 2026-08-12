@@ -15,7 +15,7 @@ class ChatRequest(BaseModel):
 @router.post("/chat")
 async def chat(body: ChatRequest,current_user=Depends(get_current_user),db: AsyncSession = Depends(get_db)):
     try:
-        return await run_agent(current_user["id"], body.message, db)
+        return await run_agent(current_user["id"], current_user["role"], body.message, db)
     except Exception as e:
         raise e
 

@@ -46,7 +46,7 @@ TOOL_DEFINITIONS = [
         "type": "function",
         "function": {
             "name": "create_task",
-            "description": "Create a new onboarding task and assign it to the user. Use this when the user wants to add a task for themselves.",
+            "description": "Create a new task. Assigns the task to the requesting user by default. Managers, HR, and superadmins may assign the task to another user by providing their name or email.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -55,6 +55,10 @@ TOOL_DEFINITIONS = [
                     "deadline": {
                         "type": "string",
                         "description": "Optional deadline in YYYY-MM-DD format. Must be a future date.",
+                    },
+                    "assigned_to": {
+                        "type": "string",
+                        "description": "Optional name or email of the user to assign the task to. Defaults to the requesting user.",
                     },
                 },
                 "required": ["title"],
