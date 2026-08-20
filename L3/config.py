@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     EMAIL_SENDER_NAME: str = "Launchpad"
 
     GROQ_API_KEY: str
+    GROQ_MODEL: str = "openai/gpt-oss-120b"
 
     FRONTEND_URL: str = "http://localhost:5173"
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

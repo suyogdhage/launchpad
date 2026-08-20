@@ -34,75 +34,72 @@ async def run_agent(user_id: UUID, user_role: str, user_message: str, db: AsyncS
 
     await ChatRepository.save_message(user_id, MessageRole.user, user_message, db)
 
-    response = await client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=messages,
-        tools=TOOL_DEFINITIONS)
+    for _ in range(5):
+        response = await client.chat.completions.create(
+            model=settings.GROQ_MODEL,
+            messages=messages,
+            tools=TOOL_DEFINITIONS)
 
-    assistant_message = response.choices[0].message
+        assistant_message = response.choices[0].message
 
-    tool_name = None
-    args = {}
-    tool_call_id = None
-    if assistant_message.tool_calls:
-        tool_call = assistant_message.tool_calls[0]
-        tool_name = tool_call.function.name
-        args = json.loads(tool_call.function.arguments)
-        tool_call_id = tool_call.id
-    else:
-        match = TEXTUAL_TOOL_CALL_RE.search(assistant_message.content or "")
-        if match:
-            try:
-                tool_name = match.group(1)
-                args = json.loads(match.group(2))
-                tool_call_id = f"call_{tool_name}_{len(assistant_message.content)}"
-            except (json.JSONDecodeError, ValueError):
-                tool_name = None
+        tool_name = None
+        args = {}
+        tool_call_id = None
+        if assistant_message.tool_calls:
+            tool_call = assistant_message.tool_calls[0]
+            tool_name = tool_call.function.name
+            args = json.loads(tool_call.function.arguments)
+            tool_call_id = tool_call.id
+        else:
+            match = TEXTUAL_TOOL_CALL_RE.search(assistant_message.content or "")
+            if match:
+                try:
+                    tool_name = match.group(1)
+                    args = json.loads(match.group(2))
+                    tool_call_id = f"call_{tool_name}_{len(assistant_message.content)}"
+                except (json.JSONDecodeError, ValueError):
+                    tool_name = None
 
-    if not tool_name:
-        reply = assistant_message.content
-        await ChatRepository.save_message(user_id, MessageRole.assistant, reply, db)
-        return {"reply": reply}
+        if not tool_name:
+            reply = assistant_message.content
+            await ChatRepository.save_message(user_id, MessageRole.assistant, reply, db)
+            return {"reply": reply}
 
-    if tool_name == "get_pending_tasks":
-        tool_result = await get_pending_tasks(user_id, db)
+        if tool_name == "get_pending_tasks":
+            tool_result = await get_pending_tasks(user_id, db)
 
-    elif tool_name == "submit_request":
-        tool_result = await submit_request(user_id, args["description"], db)
+        elif tool_name == "submit_request":
+            tool_result = await submit_request(user_id, args["description"], db)
 
-    elif tool_name == "complete_task":
-        tool_result = await complete_task(user_id, args["task_title"], db)
+        elif tool_name == "complete_task":
+            tool_result = await complete_task(user_id, args["task_title"], db)
 
-    elif tool_name == "create_task":
-        tool_result = await create_task(
-            user_id, user_role, args["title"], args.get("description"),
-            args.get("deadline"), args.get("assigned_to"), db,
-        )
+        elif tool_name == "create_task":
+            tool_result = await create_task(
+                user_id, user_role, args["title"], args.get("description"),
+                args.get("deadline"), args.get("assigned_to"), db,
+            )
 
-    else:
-        tool_result = "Unknown tool."
+        else:
+            tool_result = "Unknown tool."
 
-    messages.append({
-        "role": "assistant",
-        "content": assistant_message.content or "",
-        "tool_calls": [{
-            "id": tool_call_id,
-            "type": "function",
-            "function": {
-                "name": tool_name,
-                "arguments": json.dumps(args)
-            }
-        }]
-    })
-    messages.append({
-        "role": "tool",
-        "tool_call_id": tool_call_id,
-        "content": tool_result})
+        messages.append({
+            "role": "assistant",
+            "content": assistant_message.content or "",
+            "tool_calls": [{
+                "id": tool_call_id,
+                "type": "function",
+                "function": {
+                    "name": tool_name,
+                    "arguments": json.dumps(args)
+                }
+            }]
+        })
+        messages.append({
+            "role": "tool",
+            "tool_call_id": tool_call_id,
+            "content": tool_result})
 
-    final_response = await client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=messages)
-
-    reply = final_response.choices[0].message.content or ""
+    reply = "I'm still working on that. Could you rephrase or try again?"
     await ChatRepository.save_message(user_id, MessageRole.assistant, reply, db)
     return {"reply": reply}
